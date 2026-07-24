@@ -1,12 +1,16 @@
-import { ComingSoon } from "@/components/storefront/coming-soon";
+import { CartView } from "@/components/storefront/cart-view";
 
 export const metadata = { title: "Cart" };
 
 export default function CartPage() {
   return (
-    <ComingSoon
-      title="Your cart"
-      description="The full cart and checkout (with WhatsApp ordering) arrives in the storefront phase."
-    />
+    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+      <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+        Your cart
+      </h1>
+      <div className="mt-8">
+        <CartView />
+      </div>
+    </div>
   );
 }

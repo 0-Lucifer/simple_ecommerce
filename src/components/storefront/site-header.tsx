@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -63,11 +64,18 @@ export function SiteHeader() {
             </SheetContent>
           </Sheet>
 
-          <Link
-            href="/"
-            className="font-heading text-xl font-semibold tracking-tight"
-          >
-            {siteConfig.name}
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image
+              src="/logo.jpeg"
+              alt={siteConfig.name}
+              width={40}
+              height={40}
+              priority
+              className="size-9 rounded-md object-cover ring-1 ring-border"
+            />
+            <span className="font-heading text-xl font-semibold tracking-tight">
+              {siteConfig.name}
+            </span>
           </Link>
         </div>
 

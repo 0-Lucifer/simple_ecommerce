@@ -6,11 +6,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except static assets:
-     * _next/static, _next/image, favicon, and common image files.
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  // Only run session refresh where auth matters (the owner dashboard). The
+  // storefront is guest-only, so this avoids a Supabase auth round-trip on
+  // every public page request.
+  matcher: ["/admin/:path*"],
 }
