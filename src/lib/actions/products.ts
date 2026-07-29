@@ -9,12 +9,18 @@ import { productSchema, type ProductInput } from "@/lib/validations/product";
 type Result = { ok: true } | { ok: false; error: string };
 
 function toRow(d: ProductInput) {
+  const variants = d.variants ?? [];
   return {
     name: d.name,
     slug: d.slug,
     description: d.description || null,
-    price: d.price,
+    // With weight options, the column holds the cheapest one so listings,
+    // sorting and any older query keep showing a sensible "from" price.
+    price: variants.length
+      ? Math.min(...variants.map((v) => v.price))
+      : d.price,
     compare_at_price: d.compare_at_price ?? null,
+    variants,
     images: d.images ?? [],
     category_id: d.category_id ? d.category_id : null,
     stock: d.stock,

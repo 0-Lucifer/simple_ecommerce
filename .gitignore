@@ -43,3 +43,9 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# business & handover docs — kept local, not in the repo
+DELIVERABLES.md
+INVOICE_AND_AGREEMENT.md
+OWNER_GUIDE.md
+agreements/*

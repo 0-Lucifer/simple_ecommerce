@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { DELIVERY_ZONES } from "@/lib/delivery";
+
 export const customerSchema = z.object({
   customer_name: z.string().min(2, "Please enter your name"),
   customer_phone: z.string().min(6, "Please enter a valid phone number"),
@@ -17,10 +19,15 @@ export const customerSchema = z.object({
 export type CustomerInput = z.infer<typeof customerSchema>;
 
 export const createOrderSchema = customerSchema.extend({
+  delivery_zone: z.enum(DELIVERY_ZONES, {
+    message: "Please choose a delivery area",
+  }),
   items: z
     .array(
       z.object({
         productId: z.string().uuid(),
+        // Which weight was picked; null for products sold at a single price.
+        variantId: z.string().min(1).nullable().optional(),
         quantity: z.number().int().positive(),
       }),
     )

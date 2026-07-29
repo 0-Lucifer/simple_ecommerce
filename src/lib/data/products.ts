@@ -3,6 +3,7 @@ import { cache } from "react";
 
 import { createPublicClient } from "@/lib/supabase/public";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { parseVariants } from "@/lib/product";
 import type { ProductWithCategory } from "@/lib/types";
 
 const CATEGORY_JOIN = "category:categories(id, name, slug)";
@@ -15,6 +16,7 @@ function normalizeProduct(row: ProductWithCategory): ProductWithCategory {
     price: Number(row.price),
     compare_at_price:
       row.compare_at_price == null ? null : Number(row.compare_at_price),
+    variants: parseVariants(row.variants),
   };
 }
 

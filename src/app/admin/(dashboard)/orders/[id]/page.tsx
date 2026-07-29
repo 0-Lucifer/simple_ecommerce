@@ -4,6 +4,7 @@ import { ArrowLeft, MessageCircle } from "lucide-react";
 
 import { getAdminOrder } from "@/lib/data/admin";
 import { formatPrice, whatsappUrl } from "@/lib/format";
+import { DELIVERY_ZONE_LABELS, billableKg } from "@/lib/delivery";
 import { OrderStatusSelect } from "@/components/admin/order-status-select";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,14 @@ export default async function OrderDetailPage({
                   className="flex items-center justify-between gap-4 p-4"
                 >
                   <div>
-                    <div className="font-medium">{it.product_name}</div>
+                    <div className="font-medium">
+                      {it.product_name}
+                      {it.variant_label && (
+                        <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+                          {it.variant_label}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-sm text-muted-foreground">
                       {formatPrice(Number(it.unit_price))} × {it.quantity}
                     </div>
@@ -70,6 +78,28 @@ export default async function OrderDetailPage({
                 </li>
               ))}
             </ul>
+            <div className="space-y-2 border-t p-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="tabular-nums">
+                  {formatPrice(Number(order.subtotal))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  Delivery
+                  {order.delivery_zone
+                    ? ` · ${DELIVERY_ZONE_LABELS[order.delivery_zone]}`
+                    : ""}
+                  {Number(order.total_weight_kg) > 0
+                    ? ` · ${billableKg(Number(order.total_weight_kg))} kg`
+                    : ""}
+                </span>
+                <span className="tabular-nums">
+                  {formatPrice(Number(order.delivery_charge))}
+                </span>
+              </div>
+            </div>
             <div className="flex items-center justify-between border-t p-4 font-semibold">
               <span>Total</span>
               <span className="tabular-nums">

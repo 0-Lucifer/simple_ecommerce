@@ -82,7 +82,16 @@ export default async function AdminProductsPage() {
                     {p.category?.name ?? "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatPrice(Number(p.price))}
+                    {p.variants.length > 0 ? (
+                      <>
+                        <div>From {formatPrice(Number(p.price))}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {p.variants.map((v) => v.label).join(" · ")}
+                        </div>
+                      </>
+                    ) : (
+                      formatPrice(Number(p.price))
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {p.stock}
