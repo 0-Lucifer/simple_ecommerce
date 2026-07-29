@@ -15,16 +15,28 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { customerSchema, type CustomerInput } from "@/lib/validations/checkout";
 import { createOrder } from "@/app/actions/orders";
-import { useCart, selectCartTotal } from "@/lib/store/cart";
+import {
+  useCart,
+  selectCartTotal,
+  selectCartWeight,
+} from "@/lib/store/cart";
 import { formatPrice, whatsappUrl } from "@/lib/format";
+import {
+  DELIVERY_ZONE_LABELS,
+  calculateDeliveryCharge,
+} from "@/lib/delivery";
 import { siteConfig } from "@/lib/site";
 import { ProductImage } from "./product-image";
 import { EmptyState } from "./empty-state";
+import { DeliveryZonePicker } from "./delivery-zone-picker";
 
 export function CheckoutForm() {
   const router = useRouter();
   const items = useCart((s) => s.items);
-  const total = useCart(selectCartTotal);
+  const subtotal = useCart(selectCartTotal);
+  const weightKg = useCart(selectCartWeight);
+  const zone = useCart((s) => s.deliveryZone);
+  const setDeliveryZone = useCart((s) => s.setDeliveryZone);
   const clear = useCart((s) => s.clear);
 
   const [mounted, setMounted] = useState(false);
@@ -54,10 +66,18 @@ export function CheckoutForm() {
     );
   }
 
+  const delivery = calculateDeliveryCharge(weightKg, zone);
+  const total = subtotal + delivery;
+
   const onSubmit = async (values: CustomerInput) => {
     const res = await createOrder({
       ...values,
-      items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      delivery_zone: zone,
+      items: items.map((i) => ({
+        productId: i.productId,
+        variantId: i.variantId,
+        quantity: i.quantity,
+      })),
     });
     if (res.ok) {
       clear();
@@ -71,9 +91,14 @@ export function CheckoutForm() {
   const waMessage =
     `Hi ${siteConfig.name}! I'd like to order:\n\n` +
     items
-      .map((i) => `• ${i.name} × ${i.quantity} — ${formatPrice(i.price * i.quantity)}`)
+      .map(
+        (i) =>
+          `• ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ""} × ${i.quantity} — ${formatPrice(i.price * i.quantity)}`,
+      )
       .join("\n") +
-    `\n\nTotal: ${formatPrice(total)}`;
+    `\n\nSubtotal: ${formatPrice(subtotal)}` +
+    `\nDelivery (${DELIVERY_ZONE_LABELS[zone]}): ${formatPrice(delivery)}` +
+    `\nTotal: ${formatPrice(total)}`;
   const waLink = siteConfig.whatsappNumber
     ? whatsappUrl(siteConfig.whatsappNumber, waMessage)
     : null;
@@ -152,6 +177,15 @@ export function CheckoutForm() {
         </div>
 
         <div className="space-y-2">
+          <Label>Delivery area</Label>
+          <DeliveryZonePicker
+            value={zone}
+            onChange={setDeliveryZone}
+            weightKg={weightKg}
+          />
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="note">
             Order note <span className="text-muted-foreground">(optional)</span>
           </Label>
@@ -199,7 +233,7 @@ export function CheckoutForm() {
           <h2 className="font-heading text-lg font-semibold">Your order</h2>
           <ul className="mt-4 space-y-3">
             {items.map((i) => (
-              <li key={i.productId} className="flex gap-3">
+              <li key={i.key} className="flex gap-3">
                 <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
                   <ProductImage
                     src={i.image}
@@ -214,7 +248,8 @@ export function CheckoutForm() {
                       {i.name}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Qty {i.quantity}
+                      {i.variantLabel ? `${i.variantLabel} · ` : ""}Qty{" "}
+                      {i.quantity}
                     </div>
                   </div>
                   <div className="text-sm font-medium">
@@ -224,6 +259,19 @@ export function CheckoutForm() {
               </li>
             ))}
           </ul>
+          <Separator className="my-4" />
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span>{formatPrice(subtotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">
+                Delivery · {DELIVERY_ZONE_LABELS[zone]}
+              </span>
+              <span>{formatPrice(delivery)}</span>
+            </div>
+          </div>
           <Separator className="my-4" />
           <div className="flex justify-between font-semibold">
             <span>Total</span>

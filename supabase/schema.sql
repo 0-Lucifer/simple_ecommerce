@@ -47,6 +47,9 @@ create table if not exists public.products (
   description       text,
   price             numeric(10,2) not null check (price >= 0),
   compare_at_price  numeric(10,2) check (compare_at_price >= 0),
+  -- Optional weight options, each with its own price. Empty = no variations.
+  -- [{ "id": "uuid", "label": "500 g", "weight_kg": 0.5, "price": 450 }]
+  variants          jsonb not null default '[]'::jsonb,
   images            text[] not null default '{}',
   category_id       uuid references public.categories(id) on delete set null,
   stock             int not null default 0 check (stock >= 0),
@@ -72,6 +75,12 @@ create table if not exists public.orders (
   note              text,
   status            public.order_status not null default 'pending',
   subtotal          numeric(10,2) not null default 0,
+  delivery_zone     text check (
+                      delivery_zone is null
+                      or delivery_zone in ('inside_dhaka', 'outside_dhaka')
+                    ),
+  delivery_charge   numeric(10,2) not null default 0,
+  total_weight_kg   numeric(10,3) not null default 0,
   total             numeric(10,2) not null default 0,
   created_at        timestamptz not null default now()
 );
@@ -86,6 +95,8 @@ create table if not exists public.order_items (
   order_id      uuid not null references public.orders(id) on delete cascade,
   product_id    uuid references public.products(id) on delete set null,
   product_name  text not null,
+  variant_label text,                                  -- e.g. "500 g"
+  weight_kg     numeric(10,3) not null default 0,      -- per unit
   unit_price    numeric(10,2) not null,
   quantity      int not null check (quantity > 0)
 );

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -14,12 +14,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { productSchema, type ProductInput } from "@/lib/validations/product";
+import {
+  productSchema,
+  type ProductInput,
+  type ProductVariantInput,
+} from "@/lib/validations/product";
 import {
   createProduct,
   updateProduct,
   uploadProductImage,
 } from "@/lib/actions/products";
+import { formatPrice } from "@/lib/format";
+import { formatWeight } from "@/lib/product";
 import type { Category, Product } from "@/lib/types";
 
 function slugify(s: string) {
@@ -28,6 +34,51 @@ function slugify(s: string) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * A weight row as typed in the form. Kept as strings so a half-typed number
+ * doesn't fight the inputs; converted to kilograms on the way out.
+ */
+type WeightRow = { id: string; amount: string; unit: "g" | "kg"; price: string };
+
+function newRow(): WeightRow {
+  return { id: crypto.randomUUID(), amount: "", unit: "g", price: "" };
+}
+
+/** Existing product → editable rows (grams below 1 kg, kilograms above). */
+function toRows(product?: Product): WeightRow[] {
+  return (product?.variants ?? []).map((v) => ({
+    id: v.id,
+    amount: v.weight_kg < 1 ? String(v.weight_kg * 1000) : String(v.weight_kg),
+    unit: v.weight_kg < 1 ? "g" : "kg",
+    price: String(v.price),
+  }));
+}
+
+/** Rows → saveable weight options. Returns an error message if any row is bad. */
+function toVariants(rows: WeightRow[]): {
+  variants: ProductVariantInput[];
+  error: string | null;
+} {
+  const variants: ProductVariantInput[] = [];
+  for (const row of rows) {
+    const amount = Number(row.amount);
+    const price = Number(row.price);
+    if (!row.amount.trim() || !Number.isFinite(amount) || amount <= 0) {
+      return { variants: [], error: "Every weight needs a number above 0." };
+    }
+    if (!row.price.trim() || !Number.isFinite(price) || price < 0) {
+      return { variants: [], error: "Every weight needs a price." };
+    }
+    const weight_kg = row.unit === "g" ? amount / 1000 : amount;
+    const label = formatWeight(weight_kg);
+    if (variants.some((v) => v.label === label)) {
+      return { variants: [], error: `“${label}” is listed twice.` };
+    }
+    variants.push({ id: row.id, label, weight_kg, price });
+  }
+  return { variants, error: null };
 }
 
 function Field({
@@ -61,6 +112,8 @@ export function ProductForm({
   const router = useRouter();
   const isEdit = !!product;
   const [images, setImages] = useState<string[]>(product?.images ?? []);
+  const [rows, setRows] = useState<WeightRow[]>(() => toRows(product));
+  const [rowError, setRowError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
   const [slugEdited, setSlugEdited] = useState(isEdit);
@@ -78,6 +131,7 @@ export function ProductForm({
       description: product?.description ?? "",
       price: product?.price ?? 0,
       compare_at_price: product?.compare_at_price ?? null,
+      variants: product?.variants ?? [],
       category_id: product?.category_id ?? "",
       stock: product?.stock ?? 0,
       is_active: product?.is_active ?? true,
@@ -90,6 +144,26 @@ export function ProductForm({
   useEffect(() => {
     setValue("images", images);
   }, [images, setValue]);
+
+  const { variants, error: variantError } = toVariants(rows);
+  const hasWeights = rows.length > 0;
+  const lowestPrice = variants.length
+    ? Math.min(...variants.map((v) => v.price))
+    : null;
+
+  // Weight options own the price once they exist: the product's own price
+  // field becomes the cheapest option so listings still have something to show.
+  useEffect(() => {
+    setValue("variants", variants);
+    if (lowestPrice != null) setValue("price", lowestPrice);
+    // `variants` is rebuilt each render — compare by value, not identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(variants), lowestPrice, setValue]);
+
+  function updateRow(id: string, patch: Partial<WeightRow>) {
+    setRowError(null);
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
 
   const nameReg = register("name");
   const slugReg = register("slug");
@@ -120,8 +194,13 @@ export function ProductForm({
   }
 
   function onSubmit(values: ProductInput) {
+    if (variantError) {
+      setRowError(variantError);
+      toast.error(variantError);
+      return;
+    }
     startTransition(async () => {
-      const payload = { ...values, images };
+      const payload = { ...values, images, variants };
       const res = isEdit
         ? await updateProduct(product.id, payload)
         : await createProduct(payload);
@@ -175,6 +254,96 @@ export function ProductForm({
           />
         </Field>
 
+        <div className="space-y-3 rounded-2xl border bg-card p-5">
+          <div>
+            <Label>Weight options</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Sell the same product in different weights, each at its own price
+              (e.g. 500 g for ৳450, 1 kg for ৳850). Customers pick a weight
+              before adding to the cart, and the weight sets the delivery
+              charge. Leave this empty for a single-price product.
+            </p>
+          </div>
+
+          {rows.length > 0 && (
+            <ul className="space-y-2">
+              {rows.map((row) => (
+                <li key={row.id} className="flex items-end gap-2">
+                  <div className="w-28 shrink-0 space-y-1">
+                    <span className="text-xs text-muted-foreground">Weight</span>
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0"
+                      inputMode="decimal"
+                      value={row.amount}
+                      onChange={(e) =>
+                        updateRow(row.id, { amount: e.target.value })
+                      }
+                      placeholder="500"
+                    />
+                  </div>
+                  <div className="w-20 shrink-0 space-y-1">
+                    <span className="text-xs text-muted-foreground">Unit</span>
+                    <select
+                      value={row.unit}
+                      onChange={(e) =>
+                        updateRow(row.id, {
+                          unit: e.target.value as WeightRow["unit"],
+                        })
+                      }
+                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                      aria-label="Weight unit"
+                    >
+                      <option value="g">g</option>
+                      <option value="kg">kg</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <span className="text-xs text-muted-foreground">
+                      Price (৳)
+                    </span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      value={row.price}
+                      onChange={(e) =>
+                        updateRow(row.id, { price: e.target.value })
+                      }
+                      placeholder="450"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="mb-0.5"
+                    onClick={() => {
+                      setRowError(null);
+                      setRows((prev) => prev.filter((r) => r.id !== row.id));
+                    }}
+                    aria-label="Remove this weight"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setRows((prev) => [...prev, newRow()])}
+          >
+            <Plus className="size-4" /> Add a weight
+          </Button>
+
+          {rowError && <p className="text-sm text-destructive">{rowError}</p>}
+        </div>
+
         <div className="space-y-2">
           <Label>Photos</Label>
           <div className="flex flex-wrap gap-3">
@@ -223,15 +392,36 @@ export function ProductForm({
 
       <div className="space-y-6">
         <div className="space-y-4 rounded-2xl border bg-card p-5">
-          <Field label="Price (৳)" error={errors.price?.message}>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              inputMode="decimal"
-              {...register("price", { valueAsNumber: true })}
-            />
-          </Field>
+          {hasWeights ? (
+            <div className="space-y-2">
+              <Label>Price (৳)</Label>
+              <div className="rounded-md border border-dashed px-3 py-2 text-sm">
+                {lowestPrice != null ? (
+                  <>
+                    From{" "}
+                    <span className="font-medium">
+                      {formatPrice(lowestPrice)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Set by your weight options — each weight has its own price.
+              </p>
+            </div>
+          ) : (
+            <Field label="Price (৳)" error={errors.price?.message}>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                {...register("price", { valueAsNumber: true })}
+              />
+            </Field>
+          )}
           <Field
             label="Compare-at price (৳)"
             error={errors.compare_at_price?.message}
@@ -247,7 +437,11 @@ export function ProductForm({
               })}
             />
           </Field>
-          <Field label="Stock" error={errors.stock?.message}>
+          <Field
+            label="Stock"
+            error={errors.stock?.message}
+            hint={hasWeights ? "Shared across all weights." : undefined}
+          >
             <Input
               type="number"
               step="1"

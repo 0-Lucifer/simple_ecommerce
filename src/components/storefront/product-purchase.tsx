@@ -4,11 +4,18 @@ import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { ProductWithCategory } from "@/lib/types";
+import type { ProductVariant, ProductWithCategory } from "@/lib/types";
 import { AddToCartButton } from "./add-to-cart-button";
 import { WhatsAppOrderButton } from "./whatsapp-order-button";
 
-export function ProductPurchase({ product }: { product: ProductWithCategory }) {
+export function ProductPurchase({
+  product,
+  variant,
+}: {
+  product: ProductWithCategory;
+  /** The weight chosen above — passed on so no picker dialog is needed here. */
+  variant?: ProductVariant | null;
+}) {
   const [qty, setQty] = useState(1);
   const soldOut = product.stock <= 0;
   const max = product.stock > 0 ? product.stock : 1;
@@ -46,11 +53,13 @@ export function ProductPurchase({ product }: { product: ProductWithCategory }) {
         <AddToCartButton
           product={product}
           quantity={qty}
+          variant={variant}
           className="h-11 flex-1 rounded-full"
         />
         <WhatsAppOrderButton
           product={product}
           quantity={qty}
+          variant={variant}
           className="h-11 flex-1 rounded-full"
         />
       </div>

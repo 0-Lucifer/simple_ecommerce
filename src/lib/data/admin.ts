@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { parseVariants } from "@/lib/product";
 import type {
   Category,
   Order,
@@ -44,7 +45,11 @@ export async function getAdminProducts(): Promise<ProductWithCategory[]> {
     .from("products")
     .select("*, category:categories(id, name, slug)")
     .order("created_at", { ascending: false });
-  return (data ?? []) as unknown as ProductWithCategory[];
+  return ((data ?? []) as unknown as ProductWithCategory[]).map((row) => ({
+    ...row,
+    price: Number(row.price),
+    variants: parseVariants(row.variants),
+  }));
 }
 
 export async function getAdminProduct(id: string): Promise<Product | null> {
@@ -61,6 +66,7 @@ export async function getAdminProduct(id: string): Promise<Product | null> {
     price: Number(row.price),
     compare_at_price:
       row.compare_at_price == null ? null : Number(row.compare_at_price),
+    variants: parseVariants(row.variants),
   };
 }
 

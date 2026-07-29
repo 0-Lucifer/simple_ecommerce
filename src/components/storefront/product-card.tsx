@@ -2,14 +2,19 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/format";
+import { priceRange } from "@/lib/product";
 import type { ProductWithCategory } from "@/lib/types";
 import { ProductImage } from "./product-image";
 import { AddToCartButton } from "./add-to-cart-button";
 
 export function ProductCard({ product }: { product: ProductWithCategory }) {
   const image = product.images?.[0] ?? null;
+  const hasWeights = product.variants.length > 0;
+  const { min, max } = priceRange(product);
   const onSale =
-    product.compare_at_price != null && product.compare_at_price > product.price;
+    !hasWeights &&
+    product.compare_at_price != null &&
+    product.compare_at_price > product.price;
 
   return (
     <div className="group flex flex-col">
@@ -44,13 +49,20 @@ export function ProductCard({ product }: { product: ProductWithCategory }) {
           </div>
         )}
         <div className="mt-1 flex items-center gap-2">
-          <span className="font-semibold">{formatPrice(product.price)}</span>
+          <span className="font-semibold">
+            {hasWeights && max > min ? `From ${formatPrice(min)}` : formatPrice(min)}
+          </span>
           {onSale && (
             <span className="text-sm text-muted-foreground line-through">
               {formatPrice(product.compare_at_price!)}
             </span>
           )}
         </div>
+        {hasWeights && (
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {product.variants.map((v) => v.label).join(" · ")}
+          </div>
+        )}
         <div className="mt-3">
           <AddToCartButton product={product} className="w-full rounded-full" />
         </div>
